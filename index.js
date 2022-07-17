@@ -74,5 +74,4 @@ const start = (options = {}) => {
   const runningServer = "Listening on port: " + port;
   info(runningServer);
 };
-start();
 export default start;
