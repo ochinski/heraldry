@@ -2,26 +2,31 @@ import fs from "fs";
 import { error } from "./logger.js";
 import { addScript } from "../template/attach-script.js";
 
-const appendRefresh = async (file) => {
+const cleanup = (toDel, file) => {
   let fileContents = null;
   let hasRefresh = false;
+  try {
+    fs.unlinkSync(toDel);
+    //file removed
+  } catch (err) {
+    return error(err);
+  }
   try {
     fileContents = fs.readFileSync(file, "utf8");
     if (fileContents.includes(addScript)) {
       hasRefresh = true;
-    } else {
-      fileContents = fileContents.replace(/\<\/body>/g, addScript);
+      fileContents = fileContents.replace(addScript, "</body>");
     }
   } catch (err) {
-    return error("failed read entry file: " + err);
+    return error(err);
   }
-  if (fileContents && !hasRefresh) {
+  if (hasRefresh && fileContents) {
     try {
       fs.writeFileSync(file, fileContents);
     } catch (err) {
-      return error("failed add script: " + err);
+      return error(err);
     }
   }
 };
 
-export default appendRefresh;
+export default cleanup;

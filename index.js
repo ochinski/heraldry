@@ -1,5 +1,4 @@
 import http from "http";
-import fs from "fs";
 import path from "path";
 import express from "express";
 import cors from "cors";
@@ -7,6 +6,7 @@ import chokidar from "chokidar";
 import { info } from "./utils/logger.js";
 import appendRefresh from "./utils/appendHTML.js";
 import generateRefresh from "./utils/generateRefresh.js";
+import cleanup from "./utils/cleanup.js";
 
 // defaults, todo move to dif location
 export const defaultRoot = "./public";
@@ -19,12 +19,9 @@ const app = express();
 app.use(cors());
 const __dirname = path.resolve();
 
-let serveDir = defaultRoot;
-let currentUrl = null;
 let client = null;
 let port = defaultPort;
 const start = (options = {}) => {
-  let changed = false;
   port = options?.port || defaultPort;
 
   const serveDir = path.join(__dirname, options.root ?? defaultRoot);
@@ -35,7 +32,6 @@ const start = (options = {}) => {
   appendRefresh(serveFile);
   generateRefresh(severUrl, serveDir + "\\refresh.js");
   info("Sent the Herald ~~");
-
   const sendRefresh = () => {
     if (client) {
       info("changed detected ...");
@@ -61,7 +57,6 @@ const start = (options = {}) => {
   });
   app.get("/*", function (req, res) {
     res.sendFile(path.join(serveDir, "index.html"));
-    currentUrl = req.originalUrl;
   });
   const server = http.createServer(app);
   server.listen(app.get("port"), () => {
@@ -73,5 +68,24 @@ const start = (options = {}) => {
   });
   const runningServer = "Listening on port: " + port;
   info(runningServer);
+
+  // clean up on exit
+  process.stdin.resume();
+  function exitHandler(options) {
+    if (options.cleanup) {
+      cleanup(serveDir + "\\refresh.js", serveFile);
+    }
+    if (options.exit) {
+      process.exit();
+    }
+  }
+  // catch majority -> clean then exit
+  process.on("exit", exitHandler.bind(null, { cleanup: true }));
+  process.on("SIGINT", exitHandler.bind(null, { exit: true }));
+  process.on("SIGUSR1", exitHandler.bind(null, { exit: true }));
+  process.on("SIGUSR2", exitHandler.bind(null, { exit: true }));
+  process.on("uncaughtException", exitHandler.bind(null, { exit: true }));
 };
+
+start();
 export default start;
