@@ -87,5 +87,4 @@ const start = (options = {}) => {
   process.on("uncaughtException", exitHandler.bind(null, { exit: true }));
 };
 
-start();
 export default start;
