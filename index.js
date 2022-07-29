@@ -15,22 +15,24 @@ export const defaultUrl = "http://localhost:";
 export const defaultPort = 3000;
 export const encoding = "utf-8";
 
+const isWin = process.platform === "win32";
 const app = express();
 app.use(cors());
-const __dirname = path.resolve();
-
 let client = null;
 let port = defaultPort;
-const start = (options = {}) => {
+const start = (options = { port, slashtype }) => {
+  const backslash = options?.slashtype
+    ? options?.slashtype
+    : isWin
+    ? "\\"
+    : "/";
   port = options?.port || defaultPort;
-
-  const serveDir = path.join(__dirname, options.root ?? defaultRoot);
-  const serveFile = serveDir + "\\" + defaultEntry;
-  const severUrl = defaultUrl + defaultPort;
-
+  const serveDir = path.join(process.cwd(), options.root ?? defaultRoot);
+  const serveFile = serveDir + backslash + defaultEntry;
+  const severUrl = defaultUrl + port;
   // setup refresh
   appendRefresh(serveFile);
-  generateRefresh(severUrl, serveDir + "\\refresh.js");
+  generateRefresh(severUrl, serveDir + backslash + "refresh.js");
   info("Sent the Herald ~~");
   const sendRefresh = () => {
     if (client) {
@@ -60,11 +62,9 @@ const start = (options = {}) => {
   });
   const server = http.createServer(app);
   server.listen(app.get("port"), () => {
-    const watcher = chokidar.watch(serveDir);
-    watcher
-      .on("add", (_) => sendRefresh())
-      .on("change", (_) => sendRefresh())
-      .on("unlink", (_) => sendRefresh());
+    chokidar
+      .watch(serveDir, { usePolling: true })
+      .on("all", () => sendRefresh());
   });
   const runningServer = "Listening on port: " + port;
   info(runningServer);
@@ -73,7 +73,7 @@ const start = (options = {}) => {
   process.stdin.resume();
   function exitHandler(options) {
     if (options.cleanup) {
-      cleanup(serveDir + "\\refresh.js", serveFile);
+      cleanup(serveDir + backslash + "refresh.js", serveFile);
     }
     if (options.exit) {
       process.exit();
