@@ -2,11 +2,13 @@ import http from "http";
 import path from "path";
 import express from "express";
 import cors from "cors";
+import fs from "fs";
 import chokidar from "chokidar";
 import { info } from "./utils/logger.js";
 import appendRefresh from "./utils/appendHTML.js";
 import generateRefresh from "./utils/generateRefresh.js";
 import cleanup from "./utils/cleanup.js";
+import getContentTypeByFileExt from "./utils/getContentTypeByFileExt.js";
 
 // defaults, todo move to dif location
 export const defaultRoot = "./public";
@@ -42,7 +44,24 @@ const start = (options = { port, slashtype }) => {
     }
   };
   // setup app
-  app.use(express.static(path.join(serveDir)));
+  app.use((req, res, next) => {
+    const filePath = path.join(serveDir, req.path);
+    const fileExt = path.extname(filePath);
+
+    if (fileExt) {
+      fs.stat(filePath, (err, stat) => {
+        if (err && err.code === "ENOENT") {
+          res.status(404).send("File not found");
+        } else {
+          res.setHeader("Content-Type", getContentTypeByFileExt(fileExt));
+          res.sendFile(filePath);
+        }
+      });
+    } else {
+      next();
+    }
+  });
+
   app.set("port", options.port || defaultPort);
   app.get("/subscribe", (req, res) => {
     const headers = {
@@ -57,8 +76,12 @@ const start = (options = { port, slashtype }) => {
       client = null;
     });
   });
-  app.get("/*", function (req, res) {
-    res.sendFile(path.join(serveDir, "index.html"));
+  app.get("/*", function (req, res, next) {
+    if (path.extname(req.path) === "") {
+      res.sendFile(path.join(serveDir, "index.html"));
+    } else {
+      next();
+    }
   });
   const server = http.createServer(app);
   server.listen(app.get("port"), () => {
